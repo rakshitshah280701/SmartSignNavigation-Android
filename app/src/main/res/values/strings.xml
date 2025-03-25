@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">SignDetetor</string>
+    <string name="gpu">Detect</string>
+</resources>
