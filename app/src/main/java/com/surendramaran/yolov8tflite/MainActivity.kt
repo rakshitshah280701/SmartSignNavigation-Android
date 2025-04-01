@@ -36,21 +36,27 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
     private var detector: Detector? = null
-
+    private var walkwayDamageDetector: WalkwayDamageDetector? = null
+    private var signDetector: SignDetector? = null
     private lateinit var cameraExecutor: ExecutorService
     private lateinit var tts: TextToSpeech
 
+    private var isSignMode = true
+
+    //    walkwayDamageDetector = WalkwayDamageDetector(baseContext, this)
+//    signDetector = SignDetector(baseContext, this)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         cameraExecutor.execute {
             detector = Detector(baseContext, MODEL_PATH, LABELS_PATH, this)
+            walkwayDamageDetector = WalkwayDamageDetector(this@MainActivity, this@MainActivity)
+            signDetector = SignDetector(this@MainActivity, this@MainActivity)
         }
-
+        signDetector?.init()
         // Initialize Text-to-Speech
         tts = TextToSpeech(this, this)
 
@@ -64,17 +70,39 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
     }
 
     private fun bindListeners() {
+        binding.isSignWalk.text = "Mode: Sidewalk"
+        binding.modeStatus.text = "In: Sign Mode"
         binding.apply {
-            isGpu.setOnCheckedChangeListener { buttonView, isChecked ->
-                cameraExecutor.submit {
-                    detector?.restart(isGpu = isChecked)
-                }
-                if (isChecked) {
-                    buttonView.setBackgroundColor(ContextCompat.getColor(baseContext, R.color.orange))
+            isSignWalk.setOnClickListener {
+                isSignMode = !isSignMode
+                binding.isSignWalk.text = if (isSignMode) {
+                    "Mode: Sidewalk"
+
                 } else {
-                    buttonView.setBackgroundColor(ContextCompat.getColor(baseContext, R.color.gray))
+                    "Mode: Sign"
+                }
+
+                // Status text: what mode you're in now
+                binding.modeStatus.text = if (isSignMode) {
+                    "In: Sign Mode"
+                } else {
+                    "In: Sidewalk Mode"
                 }
             }
+
+//            capture.setOnCheckedChangeListener { buttonView, isChecked ->
+//                cameraExecutor.submit {
+//                    detector?.restart(capture = isChecked)
+//                }
+//                if (isChecked) {
+//                    buttonView.setBackgroundColor(ContextCompat.getColor(baseContext, R.color.orange))
+//                } else {
+//                    buttonView.setBackgroundColor(ContextCompat.getColor(baseContext, R.color.gray))
+//                }
+//            }
+        }
+        binding.capture.setOnClickListener{
+            captureOneFrame()
         }
     }
 
@@ -108,47 +136,59 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
             .build()
 
-        imageAnalyzer?.setAnalyzer(cameraExecutor) { imageProxy ->
-            val bitmapBuffer =
-                Bitmap.createBitmap(
-                    imageProxy.width,
-                    imageProxy.height,
-                    Bitmap.Config.ARGB_8888
-                )
-            imageProxy.use { bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer) }
-            imageProxy.close()
+        // Continuous live stream
+//        imageAnalyzer?.setAnalyzer(cameraExecutor) { imageProxy ->
+//            val bitmapBuffer =
+//                Bitmap.createBitmap(
+//                    imageProxy.width,
+//                    imageProxy.height,
+//                    Bitmap.Config.ARGB_8888
+//                )
+//            imageProxy.use { bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer) }
+//            imageProxy.close()
+//
+//            val matrix = Matrix().apply {
+//                postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+//
+//                if (isFrontCamera) {
+//                    postScale(
+//                        -1f,
+//                        1f,
+//                        imageProxy.width.toFloat(),
+//                        imageProxy.height.toFloat()
+//                    )
+//                }
+//            }
+//            binding.capture.setOnClickListener {
+//                isDetectionActive = !isDetectionActive // Toggle the state
+//
+//                if (isDetectionActive) {
+//                    // Update button text to indicate the detection is active
+//                    binding.capture.text = "Stop Detection"
+//                } else {
+//                    // Update button text to indicate detection is stopped
+//                    binding.capture.text = "Start Detection"
+//                }
+//            }
+//
+//            val rotatedBitmap = Bitmap.createBitmap(
+//                bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height,
+//                matrix, true
+//            )
+//
+//            detector?.detect(rotatedBitmap)
+//            if (isDetectionActive) {
+//                if (isSignMode) {
+//                    signDetector?.detect()
+//                } else {
+//                    walkwayDamageDetector?.detect()
+//                }
+//            }
+////            Swapping code
+//        }
 
-            val matrix = Matrix().apply {
-                postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
 
-                if (isFrontCamera) {
-                    postScale(
-                        -1f,
-                        1f,
-                        imageProxy.width.toFloat(),
-                        imageProxy.height.toFloat()
-                    )
-                }
-            }
-            binding.isGpu.setOnClickListener {
-                isDetectionActive = !isDetectionActive // Toggle the state
 
-                if (isDetectionActive) {
-                    // Update button text to indicate the detection is active
-                    binding.isGpu.text = "Stop Detection"
-                } else {
-                    // Update button text to indicate detection is stopped
-                    binding.isGpu.text = "Start Detection"
-                }
-            }
-
-            val rotatedBitmap = Bitmap.createBitmap(
-                bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height,
-                matrix, true
-            )
-
-            detector?.detect(rotatedBitmap)
-        }
         fun performDetection(frameBitmap: Bitmap) {
             if (isDetectionActive) {
                 // Perform detection
@@ -188,6 +228,46 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
             Log.e(TAG, "Use case binding failed", exc)
         }
     }
+
+    private fun captureOneFrame() {
+        imageAnalyzer?.setAnalyzer(cameraExecutor) { imageProxy ->
+            val bitmapBuffer = Bitmap.createBitmap(
+                imageProxy.width,
+                imageProxy.height,
+                Bitmap.Config.ARGB_8888
+            )
+
+            imageProxy.use {
+                bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer)
+            }
+
+            val matrix = Matrix().apply {
+                postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+                if (isFrontCamera) {
+                    postScale(-1f, 1f, imageProxy.width.toFloat(), imageProxy.height.toFloat())
+                }
+            }
+
+            val rotatedBitmap = Bitmap.createBitmap(
+                bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height,
+                matrix, true
+            )
+
+            imageProxy.close()
+
+            // Remove analyzer so only one frame is captured
+            imageAnalyzer?.clearAnalyzer()
+
+            // Use the correct detector
+            if (isSignMode) {
+                signDetector?.detect()
+            } else {
+                walkwayDamageDetector?.detect()
+            }
+            detector?.detect(rotatedBitmap)
+        }
+    }
+
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED

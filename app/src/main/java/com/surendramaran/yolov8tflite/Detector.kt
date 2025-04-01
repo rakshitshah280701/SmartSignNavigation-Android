@@ -18,7 +18,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
 
-class Detector(
+open class Detector(
     private val context: Context,
     private val modelPath: String,
     private val labelPath: String,
@@ -89,7 +89,7 @@ class Detector(
         }
     }
 
-    fun restart(isGpu: Boolean) {
+    open fun restart(isGpu: Boolean) {
         interpreter.close()
 
         val options = if (isGpu) {
@@ -112,11 +112,11 @@ class Detector(
         interpreter = Interpreter(model, options)
     }
 
-    fun close() {
+    open fun close() {
         interpreter.close()
     }
 
-    fun detect(frame: Bitmap) {
+    open fun detect(frame: Bitmap) {
         if (tensorWidth == 0) return
         if (tensorHeight == 0) return
         if (numChannel == 0) return
@@ -145,96 +145,49 @@ class Detector(
         detectorListener.onDetect(bestBoxes, inferenceTime)
     }
 
-//    private fun bestBox(array: FloatArray) : List<BoundingBox>? {
-//
-//        val boundingBoxes = mutableListOf<BoundingBox>()
-//
-//        for (c in 0 until numElements) {
-//            var maxConf = CONFIDENCE_THRESHOLD
-//            var maxIdx = -1
-//            var j = 4
-//            var arrayIdx = c + numElements * j
-//            while (j < numChannel){
-//                if (array[arrayIdx] > maxConf) {
-//                    maxConf = array[arrayIdx]
-//                    maxIdx = j - 4
-//                }
-//                j++
-//                arrayIdx += numElements
-//            }
-//
-//            if (maxConf > CONFIDENCE_THRESHOLD) {
-//                val clsName = labels[maxIdx]
-//                val cx = array[c] // 0
-//                val cy = array[c + numElements] // 1
-//                val w = array[c + numElements * 2]
-//                val h = array[c + numElements * 3]
-//                val x1 = cx - (w/2F)
-//                val y1 = cy - (h/2F)
-//                val x2 = cx + (w/2F)
-//                val y2 = cy + (h/2F)
-//                if (x1 < 0F || x1 > 1F) continue
-//                if (y1 < 0F || y1 > 1F) continue
-//                if (x2 < 0F || x2 > 1F) continue
-//                if (y2 < 0F || y2 > 1F) continue
-//
-//                boundingBoxes.add(
-//                    BoundingBox(
-//                        x1 = x1, y1 = y1, x2 = x2, y2 = y2,
-//                        cx = cx, cy = cy, w = w, h = h,
-//                        cnf = maxConf, cls = maxIdx, clsName = clsName
-//                    )
-//                )
-//            }
-//        }
-//
-//        if (boundingBoxes.isEmpty()) return null
-//
-//        return applyNMS(boundingBoxes)
-//    }
-private fun bestBox(array: FloatArray): List<BoundingBox>? {
-    val boundingBoxes = mutableListOf<BoundingBox>()
-    var hasSpoken = false
-    for (c in 0 until numElements) {
-        var maxConf = CONFIDENCE_THRESHOLD
-        var maxIdx = -1
-        var j = 4
-        var arrayIdx = c + numElements * j
-        while (j < numChannel) {
-            if (array[arrayIdx] > maxConf) {
-                maxConf = array[arrayIdx]
-                maxIdx = j - 4
+    private fun bestBox(array: FloatArray): List<BoundingBox>? {
+        val boundingBoxes = mutableListOf<BoundingBox>()
+        var hasSpoken = false
+        for (c in 0 until numElements) {
+            var maxConf = CONFIDENCE_THRESHOLD
+            var maxIdx = -1
+            var j = 4
+            var arrayIdx = c + numElements * j
+            while (j < numChannel) {
+                if (array[arrayIdx] > maxConf) {
+                    maxConf = array[arrayIdx]
+                    maxIdx = j - 4
+                }
+                j++
+                arrayIdx += numElements
             }
-            j++
-            arrayIdx += numElements
-        }
-        if (maxConf < 0.5F) continue
-        if (maxConf > CONFIDENCE_THRESHOLD) {
-            val clsName = labels[maxIdx]
-            val cx = array[c] // 0
-            val cy = array[c + numElements] // 1
-            val w = array[c + numElements * 2]
-            val h = array[c + numElements * 3]
-            val x1 = cx - (w / 2F)
-            val y1 = cy - (h / 2F)
-            val x2 = cx + (w / 2F)
-            val y2 = cy + (h / 2F)
-            if (x1 < 0F || x1 > 1F) continue
-            if (y1 < 0F || y1 > 1F) continue
-            if (x2 < 0F || x2 > 1F) continue
-            if (y2 < 0F || y2 > 1F) continue
+            if (maxConf < 0.5F) continue
+            if (maxConf > CONFIDENCE_THRESHOLD) {
+                val clsName = labels[maxIdx]
+                val cx = array[c] // 0
+                val cy = array[c + numElements] // 1
+                val w = array[c + numElements * 2]
+                val h = array[c + numElements * 3]
+                val x1 = cx - (w / 2F)
+                val y1 = cy - (h / 2F)
+                val x2 = cx + (w / 2F)
+                val y2 = cy + (h / 2F)
+                if (x1 < 0F || x1 > 1F) continue
+                if (y1 < 0F || y1 > 1F) continue
+                if (x2 < 0F || x2 > 1F) continue
+                if (y2 < 0F || y2 > 1F) continue
 
-            boundingBoxes.add(
-                BoundingBox(
-                    x1 = x1, y1 = y1, x2 = x2, y2 = y2,
-                    cx = cx, cy = cy, w = w, h = h,
-                    cnf = maxConf, cls = maxIdx,
-                    clsName = "$clsName (${(maxConf * 100).toInt()}%)"
+                boundingBoxes.add(
+                    BoundingBox(
+                        x1 = x1, y1 = y1, x2 = x2, y2 = y2,
+                        cx = cx, cy = cy, w = w, h = h,
+                        cnf = maxConf, cls = maxIdx,
+                        clsName = "$clsName (${(maxConf * 100).toInt()}%)"
+                    )
                 )
-            )
 
+            }
         }
-    }
 
     if (boundingBoxes.isEmpty()) return null
 
