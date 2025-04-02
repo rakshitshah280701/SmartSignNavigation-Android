@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeech.OnInitListener
 import android.util.Log
+import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.AspectRatio
@@ -25,6 +26,7 @@ import com.surendramaran.yolov8tflite.databinding.ActivityMainBinding
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.Locale
+import androidx.core.graphics.createBitmap
 
 class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListener {
     private lateinit var binding: ActivityMainBinding
@@ -100,9 +102,74 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
 //                    buttonView.setBackgroundColor(ContextCompat.getColor(baseContext, R.color.gray))
 //                }
 //            }
-        }
-        binding.capture.setOnClickListener{
-            captureOneFrame()
+            binding.capture.setOnClickListener {
+                if (binding.capturedImage.visibility == View.VISIBLE) {
+                    // If already showing a frozen frame, resume the camera
+                    startCamera() // Rebinds camera + analyzer
+                    binding.capturedImage.visibility = View.GONE
+                    binding.capture.text = "Capture"
+                } else {
+                    // Otherwise, capture a frame and freeze
+                    isDetectionActive = true
+                    binding.capture.text = "Detecting..."
+
+                    imageAnalyzer?.clearAnalyzer()
+
+                    imageAnalyzer?.setAnalyzer(cameraExecutor) { imageProxy ->
+                        val bitmapBuffer = Bitmap.createBitmap(
+                            imageProxy.width,
+                            imageProxy.height,
+                            Bitmap.Config.ARGB_8888
+                        )
+
+                        imageProxy.use {
+                            bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer)
+                        }
+
+                        val matrix = Matrix().apply {
+                            postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+                            if (isFrontCamera) {
+                                postScale(-1f, 1f, imageProxy.width.toFloat(), imageProxy.height.toFloat())
+                            }
+                        }
+
+                        val rotatedBitmap = Bitmap.createBitmap(
+                            bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height,
+                            matrix, true
+                        )
+
+                        imageProxy.close()
+
+                        runOnUiThread {
+                            cameraProvider?.unbindAll()
+                            binding.capturedImage.setImageBitmap(rotatedBitmap)
+                            binding.capturedImage.visibility = View.VISIBLE
+                        }
+
+                        cameraExecutor.execute {
+                            detector?.detect(rotatedBitmap)
+
+                            if (isSignMode) {
+                                signDetector?.detect(rotatedBitmap)
+                            } else {
+                                walkwayDamageDetector?.detect(rotatedBitmap)
+                            }
+
+                            runOnUiThread {
+                                isDetectionActive = false
+                                binding.capture.text = "Resume"
+                            }
+
+                            imageAnalyzer?.clearAnalyzer()
+                        }
+                    }
+                }
+            }
+
+
+
+
+
         }
     }
 
@@ -135,59 +202,6 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
             .setTargetRotation(binding.viewFinder.display.rotation)
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
             .build()
-
-        // Continuous live stream
-//        imageAnalyzer?.setAnalyzer(cameraExecutor) { imageProxy ->
-//            val bitmapBuffer =
-//                Bitmap.createBitmap(
-//                    imageProxy.width,
-//                    imageProxy.height,
-//                    Bitmap.Config.ARGB_8888
-//                )
-//            imageProxy.use { bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer) }
-//            imageProxy.close()
-//
-//            val matrix = Matrix().apply {
-//                postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
-//
-//                if (isFrontCamera) {
-//                    postScale(
-//                        -1f,
-//                        1f,
-//                        imageProxy.width.toFloat(),
-//                        imageProxy.height.toFloat()
-//                    )
-//                }
-//            }
-//            binding.capture.setOnClickListener {
-//                isDetectionActive = !isDetectionActive // Toggle the state
-//
-//                if (isDetectionActive) {
-//                    // Update button text to indicate the detection is active
-//                    binding.capture.text = "Stop Detection"
-//                } else {
-//                    // Update button text to indicate detection is stopped
-//                    binding.capture.text = "Start Detection"
-//                }
-//            }
-//
-//            val rotatedBitmap = Bitmap.createBitmap(
-//                bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height,
-//                matrix, true
-//            )
-//
-//            detector?.detect(rotatedBitmap)
-//            if (isDetectionActive) {
-//                if (isSignMode) {
-//                    signDetector?.detect()
-//                } else {
-//                    walkwayDamageDetector?.detect()
-//                }
-//            }
-////            Swapping code
-//        }
-
-
 
         fun performDetection(frameBitmap: Bitmap) {
             if (isDetectionActive) {
@@ -229,44 +243,40 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
         }
     }
 
-    private fun captureOneFrame() {
-        imageAnalyzer?.setAnalyzer(cameraExecutor) { imageProxy ->
-            val bitmapBuffer = Bitmap.createBitmap(
-                imageProxy.width,
-                imageProxy.height,
-                Bitmap.Config.ARGB_8888
-            )
-
-            imageProxy.use {
-                bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer)
-            }
-
-            val matrix = Matrix().apply {
-                postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
-                if (isFrontCamera) {
-                    postScale(-1f, 1f, imageProxy.width.toFloat(), imageProxy.height.toFloat())
-                }
-            }
-
-            val rotatedBitmap = Bitmap.createBitmap(
-                bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height,
-                matrix, true
-            )
-
-            imageProxy.close()
-
-            // Remove analyzer so only one frame is captured
-            imageAnalyzer?.clearAnalyzer()
-
-            // Use the correct detector
-            if (isSignMode) {
-                signDetector?.detect()
-            } else {
-                walkwayDamageDetector?.detect()
-            }
-            detector?.detect(rotatedBitmap)
-        }
-    }
+//    private fun captureOneFrame() {
+//        imageAnalyzer?.setAnalyzer(cameraExecutor) { imageProxy ->
+//            val bitmapBuffer = createBitmap(imageProxy.width, imageProxy.height)
+//
+//            imageProxy.use {
+//                bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer)
+//            }
+//
+//            val matrix = Matrix().apply {
+//                postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+//                if (isFrontCamera) {
+//                    postScale(-1f, 1f, imageProxy.width.toFloat(), imageProxy.height.toFloat())
+//                }
+//            }
+//
+//            val rotatedBitmap = Bitmap.createBitmap(
+//                bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height,
+//                matrix, true
+//            )
+//
+//            imageProxy.close()
+//
+//            // Remove analyzer so only one frame is captured
+//            imageAnalyzer?.clearAnalyzer()
+//
+//            // Use the correct detector
+//            if (isSignMode) {
+//                signDetector?.detect()
+//            } else {
+//                walkwayDamageDetector?.detect()
+//            }
+//            detector?.detect(rotatedBitmap)
+//        }
+//    }
 
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
