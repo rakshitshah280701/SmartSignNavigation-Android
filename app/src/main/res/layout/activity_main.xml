@@ -18,7 +18,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.5"
-        app:scaleType="fillStart" />
+        app:scaleType="fillStart" >
+
+        <ImageView
+            android:id="@+id/capturedImage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="368dp"
+            android:layout_marginBottom="548dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
+    </androidx.camera.view.PreviewView>
 
     <com.surendramaran.yolov8tflite.OverlayView
         android:id="@+id/overlay"
@@ -33,35 +43,8 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.5" />
 
-    <TextView
-        tools:text="100ms"
-        android:textColor="@color/white"
-        android:id="@+id/inferenceTime"
-        android:layout_margin="32dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
-
-    <TextView
-        android:id="@+id/heading"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Sign Detector"
-        android:textColor="#FFFFFF"
-    android:textSize="24sp"
-    android:textStyle="bold"
-    android:layout_marginTop="0dp"
-    android:background="#000080"
-    android:paddingTop="10dp"
-    android:paddingBottom="10dp"
-    android:paddingLeft="16dp"
-    android:paddingRight="16dp"
-    app:layout_constraintTop_toTopOf="parent"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintEnd_toEndOf="parent" />
-
     <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/constraintLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/white"
@@ -69,23 +52,77 @@
         app:layout_constraintBottom_toBottomOf="parent">
 
         <ToggleButton
-            android:id="@+id/isGpu"
-            android:background="@color/blue"
+            android:id="@+id/capture"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:background="@color/blue"
             android:textColor="@color/white"
             android:textOff="@string/gpu"
             android:textOn="@string/gpu"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.477"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintVertical_bias="0.5" />
+            app:layout_constraintVertical_bias="0.0" />
+
+        <TextView
+            android:id="@+id/modeStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp"
+            android:layout_marginBottom="12dp"
+            android:text="In: Sign Mode"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/capture" />
 
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-<!--    <ImageView-->
+    <TextView
+        android:id="@+id/heading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#000080"
+        android:paddingLeft="16dp"
+        android:paddingTop="10dp"
+        android:paddingRight="16dp"
+        android:paddingBottom="10dp"
+        android:text="SceneSense"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/view_finder"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.0" />
+
+    <Button
+        android:id="@+id/isSignWalk"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="28dp"
+        android:text="Mode: Sign"
+        app:layout_constraintBottom_toTopOf="@+id/view_finder"
+        app:layout_constraintEnd_toEndOf="@+id/heading"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toEndOf="@+id/inferenceTime"
+        app:layout_constraintTop_toTopOf="@+id/heading"
+        app:layout_constraintVertical_bias="0.0" />
+
+    <TextView
+        android:id="@+id/inferenceTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="32dp"
+        android:textColor="@color/white"
+        app:layout_constraintBottom_toBottomOf="@+id/heading"
+        app:layout_constraintEnd_toEndOf="@+id/heading"
+        app:layout_constraintStart_toStartOf="@+id/heading"
+        app:layout_constraintTop_toTopOf="@+id/heading"
+        tools:text="100ms" />
+
+    <!--    <ImageView-->
 <!--        android:id="@+id/ivTop"-->
 <!--        android:layout_width="match_parent"-->
 <!--        android:layout_height="match_parent"/>-->
