@@ -21,6 +21,7 @@ class SignDetector(
 
     fun init() {
         Log.d("DEBUG_TAG", "SignDetector initializing")
+        println("Hello world")
     }
 
     fun create() {
