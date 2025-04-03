@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeech.OnInitListener
 import android.util.Log
+import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
@@ -54,6 +55,9 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
         setContentView(binding.root)
         cameraExecutor = Executors.newSingleThreadExecutor()
 
+        // Initially hide upload button
+        binding.uploadImageButton.visibility = View.GONE
+
         cameraExecutor.execute {
             detector = Detector(baseContext, MODEL_PATH, LABELS_PATH, this)
             walkwayDamageDetector = WalkwayDamageDetector(this@MainActivity, this@MainActivity)
@@ -88,8 +92,27 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
         }
 
         binding.capture.setOnClickListener {
-            if (isImageCaptured) clearCapturedImage() else captureOneFrame()
+            if (isImageCaptured) {
+                clearCapturedImage()
+                binding.uploadImageButton.visibility = View.GONE
+            } else {
+                captureOneFrame()
+                binding.uploadImageButton.visibility = View.VISIBLE
+            }
         }
+
+        binding.uploadImageButton.setOnClickListener {
+            capturedBitmap?.let { bitmap ->
+                uploadImageToOpenAI(bitmap)
+            }
+        }
+    }
+
+
+    private fun uploadImageToOpenAI(bitmap: Bitmap) {
+        // TODO: Add your OpenAI upload logic here
+        Log.d("UPLOAD", "Uploading image to OpenAI model...")
+        // You can convert bitmap to base64 or file and send via Retrofit or other HTTP client
     }
 
     private fun clearCapturedImage() {
@@ -238,11 +261,12 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
                 detectionObject.put("label", label)
                 detectionObject.put("ocr_text", text.replace("\n", " "))
 
-                val pixelBox = JSONObject()
-                pixelBox.put("x1", x1)
-                pixelBox.put("y1", y1)
-                pixelBox.put("x2", x2)
-                pixelBox.put("y2", y2)
+//                commented out since we want normalized objects
+//                val pixelBox = JSONObject()
+//                pixelBox.put("x1", x1)
+//                pixelBox.put("y1", y1)
+//                pixelBox.put("x2", x2)
+//                pixelBox.put("y2", y2)
 
                 val normBox = JSONObject()
                 normBox.put("x", "%.4f".format(norm[0]))
@@ -250,7 +274,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
                 normBox.put("width", "%.4f".format(norm[2]))
                 normBox.put("height", "%.4f".format(norm[3]))
 
-                detectionObject.put("bounding_box_pixels", pixelBox)
+//                detectionObject.put("bounding_box_pixels", pixelBox)
                 detectionObject.put("normalized_bounding_box", normBox)
 
                 detectionArray.put(detectionObject)
