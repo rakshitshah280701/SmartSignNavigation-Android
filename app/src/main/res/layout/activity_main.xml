@@ -32,6 +32,17 @@
         app:scaleType="fillStart" />
 
     <ImageView
+        android:id="@+id/uploadedImageView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="@+id/view_finder"
+        app:layout_constraintBottom_toBottomOf="@+id/view_finder"
+        app:layout_constraintStart_toStartOf="@+id/view_finder"
+        app:layout_constraintEnd_toEndOf="@+id/view_finder" />
+
+    <ImageView
         android:id="@+id/capturedImage"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

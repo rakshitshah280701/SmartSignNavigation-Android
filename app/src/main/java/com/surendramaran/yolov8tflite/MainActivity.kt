@@ -171,7 +171,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
             runOnUiThread {
                 binding.capture.text = "Clear Image"
                 binding.uploadImageButton.visibility = View.VISIBLE
-//                cameraProvider?.unbind(preview)
+                binding.uploadedImageView.setImageBitmap(argbBitmap)
+                binding.uploadedImageView.visibility = View.VISIBLE
                 cameraProvider?.unbindAll()
 
             }
@@ -186,13 +187,29 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
     private fun clearCapturedImage() {
         isImageCaptured = false
         capturedBitmap = null
+
+        // Clear overlays and text
         binding.overlay.clear()
         binding.overlay.invalidate()
         binding.ocrTextView.text = ""
-        binding.capture.text = getString(R.string.capture_image)
+
+        // Reset detection data
         detectionArray = JSONArray()
+
+        // Reset capture button text
+        binding.capture.text = getString(R.string.capture_image)
+
+        // Hide uploaded image
+        binding.uploadedImageView.setImageDrawable(null)
+        binding.uploadedImageView.visibility = View.GONE
+
+        // Optional: Re-enable overlay if hidden during upload
+        binding.overlay.visibility = View.VISIBLE
+
+        // Restart the camera preview
         startCamera()
     }
+
 
     private fun captureOneFrame() {
         imageAnalyzer?.clearAnalyzer()
