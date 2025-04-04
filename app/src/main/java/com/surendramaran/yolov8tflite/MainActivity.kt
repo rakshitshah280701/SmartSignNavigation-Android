@@ -259,12 +259,18 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
 
     private fun sendToChatGPT(jsonInput: JSONArray) {
         val queue = Volley.newRequestQueue(this)
+
+        val prompt = buildString {
+            append("Given the following detected signs and their bounding boxes with OCR text, generate a natural language description of the scene:\n\n")
+            append(detectionArray.toString(2))
+        }
+
         val jsonBody = JSONObject().apply {
-            put("model", "gpt-3.5-turbo")
+            put("model", "ft:gpt-3.5-turbo-0125:ilab::BHlUI1ic")
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")
-                    put("content", "Here's OCR JSON: $jsonInput. What can you infer from this?")
+                    put("content", prompt)
                 })
             })
         }
