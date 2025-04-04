@@ -1,12 +1,16 @@
 package com.surendramaran.yolov8tflite
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.graphics.Matrix
+import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.speech.tts.TextToSpeech
-import android.speech.tts.TextToSpeech.OnInitListener
 import android.util.Log
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,35 +32,44 @@ import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListener {
+class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeech.OnInitListener {
     private lateinit var binding: ActivityMainBinding
-    private val isFrontCamera = false
-    private var isDetectionActive = false
+    private lateinit var tts: TextToSpeech
+    private lateinit var cameraExecutor: ExecutorService
+    private var detector: Detector? = null
+    private var signDetector: SignDetector? = null
+    private var walkwayDamageDetector: WalkwayDamageDetector? = null
+
+    private var isFrontCamera = false
+    private var isSignMode = true
+    private var isImageCaptured = false
+    private var capturedBitmap: Bitmap? = null
+    private var detectionArray = JSONArray()
 
     private var preview: Preview? = null
     private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
-    private var detector: Detector? = null
-    private var walkwayDamageDetector: WalkwayDamageDetector? = null
-    private var signDetector: SignDetector? = null
-    private lateinit var cameraExecutor: ExecutorService
-    private lateinit var tts: TextToSpeech
 
-    private var isSignMode = true
-    private var isImageCaptured = false
-    private var capturedBitmap: Bitmap? = null
-
-    private var detectionArray = JSONArray()
+    private val pickImageLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                handleSelectedImage(uri)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // Initially hide upload button
-        binding.uploadImageButton.visibility = View.GONE
+        cameraExecutor = Executors.newSingleThreadExecutor()
+        tts = TextToSpeech(this, this)
+
+//        binding.uploadImageButton.visibility = View.GONE
 
         cameraExecutor.execute {
             detector = Detector(baseContext, MODEL_PATH, LABELS_PATH, this)
@@ -66,8 +79,6 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
             walkwayDamageDetector?.init()
         }
 
-        tts = TextToSpeech(this, this)
-
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -75,55 +86,6 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
         }
 
         bindListeners()
-    }
-
-    private fun bindListeners() {
-        binding.isSignWalk.setOnClickListener {
-            isSignMode = !isSignMode
-            binding.isSignWalk.text = if (isSignMode) "Mode: Sidewalk" else "Mode: Sign"
-            binding.modeStatus.text = if (isSignMode) "In: Sign Mode" else "In: Sidewalk Mode"
-            if (isSignMode) {
-                signDetector?.restart()
-                signDetector?.create()
-            } else {
-                walkwayDamageDetector?.restart()
-                walkwayDamageDetector?.create()
-            }
-        }
-
-        binding.capture.setOnClickListener {
-            if (isImageCaptured) {
-                clearCapturedImage()
-                binding.uploadImageButton.visibility = View.GONE
-            } else {
-                captureOneFrame()
-                binding.uploadImageButton.visibility = View.VISIBLE
-            }
-        }
-
-        binding.uploadImageButton.setOnClickListener {
-            capturedBitmap?.let { bitmap ->
-                uploadImageToOpenAI(bitmap)
-            }
-        }
-    }
-
-
-    private fun uploadImageToOpenAI(bitmap: Bitmap) {
-        // TODO: Add your OpenAI upload logic here
-        Log.d("UPLOAD", "Uploading image to OpenAI model...")
-        // You can convert bitmap to base64 or file and send via Retrofit or other HTTP client
-    }
-
-    private fun clearCapturedImage() {
-        isImageCaptured = false
-        capturedBitmap = null
-        binding.overlay.clear()
-        binding.overlay.invalidate()
-        binding.ocrTextView.text = ""
-        binding.capture.text = getString(R.string.capture_image)
-        detectionArray = JSONArray()
-        startCamera()
     }
 
     private fun startCamera() {
@@ -154,37 +116,113 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
             .build()
 
         cameraProvider.unbindAll()
-        try {
-            camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalyzer)
-            preview?.setSurfaceProvider(binding.viewFinder.surfaceProvider)
-        } catch (exc: Exception) {
-            Log.e(TAG, "Use case binding failed", exc)
+        camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalyzer)
+        preview?.setSurfaceProvider(binding.viewFinder.surfaceProvider)
+    }
+
+
+    private fun bindListeners() {
+        binding.isSignWalk.setOnClickListener {
+            isSignMode = !isSignMode
+            binding.isSignWalk.text = if (isSignMode) "Mode: Sidewalk" else "Mode: Sign"
+            binding.modeStatus.text = if (isSignMode) "In: Sign Mode" else "In: Sidewalk Mode"
+            if (isSignMode) {
+                signDetector?.restart()
+                signDetector?.create()
+            } else {
+                walkwayDamageDetector?.restart()
+                walkwayDamageDetector?.create()
+            }
+        }
+
+        binding.capture.setOnClickListener {
+            if (isImageCaptured) {
+                clearCapturedImage()
+                binding.uploadImageButton.visibility = View.GONE
+            } else {
+                captureOneFrame()
+                binding.uploadImageButton.visibility = View.VISIBLE
+            }
+        }
+
+        binding.uploadImageButton.setOnClickListener {
+            val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+            intent.type = "image/*"
+            pickImageLauncher.launch(intent)
         }
     }
 
+    private fun handleSelectedImage(uri: Uri) {
+        try {
+            val bitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                val source = ImageDecoder.createSource(contentResolver, uri)
+                ImageDecoder.decodeBitmap(source)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaStore.Images.Media.getBitmap(contentResolver, uri)
+            }
+//            capturedBitmap = bitmap
+            val argbBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+            capturedBitmap = argbBitmap
+
+
+            isImageCaptured = true
+
+            runOnUiThread {
+                binding.capture.text = "Clear Image"
+                binding.uploadImageButton.visibility = View.VISIBLE
+//                cameraProvider?.unbind(preview)
+                cameraProvider?.unbindAll()
+
+            }
+
+            detector?.detect(bitmap)
+            if (isSignMode) signDetector?.detect() else walkwayDamageDetector?.detect()
+        } catch (e: Exception) {
+            Log.e("UPLOAD", "Failed to decode selected image", e)
+        }
+    }
+
+    private fun clearCapturedImage() {
+        isImageCaptured = false
+        capturedBitmap = null
+        binding.overlay.clear()
+        binding.overlay.invalidate()
+        binding.ocrTextView.text = ""
+        binding.capture.text = getString(R.string.capture_image)
+        detectionArray = JSONArray()
+        startCamera()
+    }
+
     private fun captureOneFrame() {
+        imageAnalyzer?.clearAnalyzer()
         imageAnalyzer?.setAnalyzer(cameraExecutor) { imageProxy ->
+//            val bitmapBuffer = createBitmap(imageProxy.width, imageProxy.height)
+
+//            imageProxy.use { bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer) }
             val bitmapBuffer = createBitmap(imageProxy.width, imageProxy.height)
-            imageProxy.use { bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer) }
+            bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer)
+
 
             val matrix = Matrix().apply {
                 postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
-                if (isFrontCamera) postScale(-1f, 1f, imageProxy.width.toFloat(), imageProxy.height.toFloat())
+                if (isFrontCamera) postScale(-1f, 1f)
             }
 
             val rotatedBitmap = Bitmap.createBitmap(bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true)
             imageProxy.close()
             capturedBitmap = rotatedBitmap
             isImageCaptured = true
-            imageAnalyzer?.clearAnalyzer()
 
             runOnUiThread {
                 binding.capture.text = "Clear Image"
-                cameraProvider?.unbind(preview)
+//                cameraProvider?.unbind(preview)
+                cameraProvider?.unbindAll()
+
             }
 
-            if (isSignMode) signDetector?.detect() else walkwayDamageDetector?.detect()
             detector?.detect(rotatedBitmap)
+            if (isSignMode) signDetector?.detect() else walkwayDamageDetector?.detect()
         }
     }
 
@@ -221,10 +259,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
                     runTextRecognition(croppedBitmap, label, ocrResult, index, box, w, h) {
                         completedCount++
                         if (completedCount == totalBoxes) {
-                            runOnUiThread {
-                                binding.ocrTextView.text = ocrResult.toString().trim()
-                                Log.d("JSON_OUTPUT", detectionArray.toString(2))
-                            }
+                            binding.ocrTextView.text = ocrResult.toString().trim()
+                            Log.d("JSON_OUTPUT", detectionArray.toString(2))
                         }
                     }
                 }
@@ -250,32 +286,24 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
                 val text = visionText.text.trim().takeIf { it.isNotEmpty() } ?: "N/A"
                 resultBuilder.append("${index + 1}. $label - $text\n")
 
-                val x1 = (box.x1 * imageWidth).toInt()
-                val y1 = (box.y1 * imageHeight).toInt()
-                val x2 = (box.x2 * imageWidth).toInt()
-                val y2 = (box.y2 * imageHeight).toInt()
+                val norm = normalizeBoundingBox(
+                    (box.x1 * imageWidth).toInt(),
+                    (box.y1 * imageHeight).toInt(),
+                    (box.x2 * imageWidth).toInt(),
+                    (box.y2 * imageHeight).toInt(),
+                    imageWidth, imageHeight
+                )
 
-                val norm = normalizeBoundingBox(x1, y1, x2, y2, imageWidth, imageHeight)
-
-                val detectionObject = JSONObject()
-                detectionObject.put("label", label)
-                detectionObject.put("ocr_text", text.replace("\n", " "))
-
-//                commented out since we want normalized objects
-//                val pixelBox = JSONObject()
-//                pixelBox.put("x1", x1)
-//                pixelBox.put("y1", y1)
-//                pixelBox.put("x2", x2)
-//                pixelBox.put("y2", y2)
-
-                val normBox = JSONObject()
-                normBox.put("x", "%.4f".format(norm[0]))
-                normBox.put("y", "%.4f".format(norm[1]))
-                normBox.put("width", "%.4f".format(norm[2]))
-                normBox.put("height", "%.4f".format(norm[3]))
-
-//                detectionObject.put("bounding_box_pixels", pixelBox)
-                detectionObject.put("normalized_bounding_box", normBox)
+                val detectionObject = JSONObject().apply {
+                    put("label", label)
+                    put("ocr_text", text.replace("\n", " "))
+                    put("normalized_bounding_box", JSONObject().apply {
+                        put("x", "%.4f".format(norm[0]))
+                        put("y", "%.4f".format(norm[1]))
+                        put("width", "%.4f".format(norm[2]))
+                        put("height", "%.4f".format(norm[3]))
+                    })
+                }
 
                 detectionArray.put(detectionObject)
                 tts.speak("$label detected. Text is $text", TextToSpeech.QUEUE_ADD, null, null)
@@ -289,16 +317,12 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
     }
 
     private fun normalizeBoundingBox(xMin: Int, yMin: Int, xMax: Int, yMax: Int, imageWidth: Int, imageHeight: Int): List<Float> {
-        return try {
-            listOf(
-                xMin.toFloat() / imageWidth,
-                yMin.toFloat() / imageHeight,
-                (xMax - xMin).toFloat() / imageWidth,
-                (yMax - yMin).toFloat() / imageHeight
-            )
-        } catch (e: Exception) {
-            listOf(0f, 0f, 0f, 0f)
-        }
+        return listOf(
+            xMin.toFloat() / imageWidth,
+            yMin.toFloat() / imageHeight,
+            (xMax - xMin).toFloat() / imageWidth,
+            (yMax - yMin).toFloat() / imageHeight
+        )
     }
 
     private fun getDirection(box: BoundingBox): String {
@@ -311,25 +335,24 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
         }
     }
 
-    private fun speakDetectedLabel(labelAndDirection: String) {
-        if (labelAndDirection.isNotEmpty()) {
-            tts.speak(labelAndDirection, TextToSpeech.QUEUE_FLUSH, null, null)
-        }
+    private fun speakDetectedLabel(label: String) {
+        if (label.isNotEmpty()) tts.speak(label, TextToSpeech.QUEUE_FLUSH, null, null)
     }
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            val result = tts.setLanguage(Locale.US)
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Log.e(TAG, "TTS language not supported")
-            }
+            tts.language = Locale.US
         } else {
             Log.e(TAG, "TTS initialization failed")
         }
     }
 
     override fun onEmptyDetect() {
-        runOnUiThread { binding.overlay.clear() }
+        runOnUiThread {
+            binding.overlay.clear()
+            binding.ocrTextView.text = ""
+            detectionArray = JSONArray()
+        }
     }
 
     override fun onDestroy() {
@@ -345,7 +368,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, OnInitListe
     override fun onResume() {
         super.onResume()
         if (!isImageCaptured) {
-            if (allPermissionsGranted()) startCamera() else requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
+            if (allPermissionsGranted()) startCamera()
+            else requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
         }
     }
 

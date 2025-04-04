@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:background="@color/black"
+<androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/camera_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    xmlns:tools="http://schemas.android.com/tools">
+    android:background="@color/black">
 
     <TextView
         android:id="@+id/ocrTextView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
         android:background="#66000000"
         android:padding="8dp"
         android:textColor="#FFFFFF"
@@ -29,17 +29,18 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.5"
-        app:scaleType="fillStart" >
+        app:scaleType="fillStart" />
 
-        <ImageView
-            android:id="@+id/capturedImage"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="368dp"
-            android:layout_marginBottom="548dp"
-            android:scaleType="fitCenter"
-            android:visibility="gone" />
-    </androidx.camera.view.PreviewView>
+    <ImageView
+        android:id="@+id/capturedImage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="@+id/view_finder"
+        app:layout_constraintBottom_toBottomOf="@+id/view_finder"
+        app:layout_constraintStart_toStartOf="@+id/view_finder"
+        app:layout_constraintEnd_toEndOf="@+id/view_finder" />
 
     <com.surendramaran.yolov8tflite.OverlayView
         android:id="@+id/overlay"
@@ -96,7 +97,6 @@
             app:layout_constraintStart_toEndOf="@+id/capture"
             app:layout_constraintTop_toTopOf="parent" />
 
-
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <TextView
@@ -142,8 +142,4 @@
         app:layout_constraintTop_toTopOf="@+id/heading"
         tools:text="100ms" />
 
-    <!--    <ImageView-->
-<!--        android:id="@+id/ivTop"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:layout_height="match_parent"/>-->
 </androidx.constraintlayout.widget.ConstraintLayout>
