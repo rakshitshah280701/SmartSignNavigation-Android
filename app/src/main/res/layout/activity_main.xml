@@ -74,6 +74,15 @@
         android:paddingVertical="4dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
+        <Button
+            android:id="@+id/chatButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Ask ChatGPT"
+            app:layout_constraintTop_toBottomOf="@+id/uploadImageButton"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
         <ToggleButton
             android:id="@+id/capture"
             android:layout_width="wrap_content"

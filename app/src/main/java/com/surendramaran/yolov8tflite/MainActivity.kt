@@ -20,6 +20,8 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
+import com.android.volley.toolbox.JsonObjectRequest
+import com.android.volley.toolbox.Volley
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -150,6 +152,10 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
             intent.type = "image/*"
             pickImageLauncher.launch(intent)
         }
+
+        binding.chatButton.setOnClickListener {
+            sendToChatGPT(detectionArray)
+        }
     }
 
     private fun handleSelectedImage(uri: Uri) {
@@ -247,6 +253,46 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
 //            if (isSignMode) signDetector?.detect() else walkwayDamageDetector?.detect()
         }
     }
+
+    private val chatGPTUrl = "https://api.openai.com/v1/chat/completions"
+    private val apiKey = "Bearer dummy-key" // Replace with your actual key
+
+    private fun sendToChatGPT(jsonInput: JSONArray) {
+        val queue = Volley.newRequestQueue(this)
+        val jsonBody = JSONObject().apply {
+            put("model", "gpt-3.5-turbo")
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", "Here's OCR JSON: $jsonInput. What can you infer from this?")
+                })
+            })
+        }
+
+        val request = object : JsonObjectRequest(
+            Method.POST, chatGPTUrl, jsonBody,
+            { response ->
+                val result = response.getJSONArray("choices")
+                    .getJSONObject(0)
+                    .getJSONObject("message")
+                    .getString("content")
+                binding.ocrTextView.text = result // Display ChatGPT reply
+            },
+            { error ->
+                Log.e("ChatGPT", "Error: ${error.message}")
+            }
+        ) {
+            override fun getHeaders(): MutableMap<String, String> {
+                return mutableMapOf(
+                    "Authorization" to apiKey,
+                    "Content-Type" to "application/json"
+                )
+            }
+        }
+
+        queue.add(request)
+    }
+
 
     override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
         runOnUiThread {
