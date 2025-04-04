@@ -138,7 +138,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         binding.capture.setOnClickListener {
             if (isImageCaptured) {
                 clearCapturedImage()
-                binding.uploadImageButton.visibility = View.GONE
+//                binding.uploadImageButton.visibility = View.GONE
             } else {
                 captureOneFrame()
                 binding.uploadImageButton.visibility = View.VISIBLE
@@ -161,11 +161,11 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                 @Suppress("DEPRECATION")
                 MediaStore.Images.Media.getBitmap(contentResolver, uri)
             }
-//            capturedBitmap = bitmap
+
             val argbBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+            // ✅ Set before calling detect
             capturedBitmap = argbBitmap
-
-
             isImageCaptured = true
 
             runOnUiThread {
@@ -174,15 +174,17 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                 binding.uploadedImageView.setImageBitmap(argbBitmap)
                 binding.uploadedImageView.visibility = View.VISIBLE
                 cameraProvider?.unbindAll()
-
             }
 
-            detector?.detect(bitmap)
-            if (isSignMode) signDetector?.detect() else walkwayDamageDetector?.detect()
+            // ✅ Only call this
+            detector?.detect(argbBitmap)
+
         } catch (e: Exception) {
             Log.e("UPLOAD", "Failed to decode selected image", e)
         }
     }
+
+
 
     private fun clearCapturedImage() {
         isImageCaptured = false
@@ -202,6 +204,9 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         // Hide uploaded image
         binding.uploadedImageView.setImageDrawable(null)
         binding.uploadedImageView.visibility = View.GONE
+
+        // Re-show upload button
+        binding.uploadImageButton.visibility = View.VISIBLE
 
         // Optional: Re-enable overlay if hidden during upload
         binding.overlay.visibility = View.VISIBLE
@@ -239,7 +244,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
             }
 
             detector?.detect(rotatedBitmap)
-            if (isSignMode) signDetector?.detect() else walkwayDamageDetector?.detect()
+//            if (isSignMode) signDetector?.detect() else walkwayDamageDetector?.detect()
         }
     }
 
