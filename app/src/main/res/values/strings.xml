@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">SignDetetor</string>
     <string name="gpu">Detect</string>
+    <string name="capture_image">Capture Image</string>
 </resources>
