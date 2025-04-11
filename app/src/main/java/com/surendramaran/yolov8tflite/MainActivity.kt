@@ -38,6 +38,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
     private lateinit var binding: ActivityMainBinding
     private lateinit var tts: TextToSpeech
     private lateinit var cameraExecutor: ExecutorService
+    private lateinit var uploadedImageView: BoundingBoxImageView
+
     private var detector: Detector? = null
     private var signDetector: SignDetector? = null
     private var walkwayDamageDetector: WalkwayDamageDetector? = null
@@ -45,6 +47,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
     private var isFrontCamera = false
     private var isSignMode = true
     private var isImageCaptured = false
+    private var isImageUploaded = false
+
     private var capturedBitmap: Bitmap? = null
     private var detectionArray = JSONArray()
 
@@ -54,7 +58,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
     private var cameraProvider: ProcessCameraProvider? = null
 
     private val chatGPTUrl = "https://api.openai.com/v1/chat/completions"
-    private val apiKey = "Bearer dummy-key" // Replace with your actual key
+    private val apiKey = "Bearer-dummy-key" // Replace with your actual key
 
     // Registers a launcher for picking an image from the gallery
     private val pickImageLauncher = registerForActivityResult(
@@ -81,6 +85,10 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         super.onCreate(savedInstanceState)
         // Inflate the layout using ViewBinding
         binding = ActivityMainBinding.inflate(layoutInflater)
+        uploadedImageView = binding.uploadedImageView
+
+        uploadedImageView = binding.uploadedImageView  // ✅ ADD THIS LINE
+
         setContentView(binding.root)
         // Create a single-thread executor for background tasks like image analysis
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -248,6 +256,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
             // Save the captured image and mark it as captured
             capturedBitmap = argbBitmap
             isImageCaptured = true
+            isImageUploaded = true
+
 
             // Update the UI on the main thread
             runOnUiThread {
@@ -274,6 +284,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
     private fun clearCapturedImage() {
         // Reset capture state and image reference
         isImageCaptured = false
+        isImageUploaded = false
+
         capturedBitmap = null
 
         // Clear visual overlays and any OCR text on screen
@@ -336,6 +348,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
             // Save the captured and rotated bitmap
             capturedBitmap = rotatedBitmap
             isImageCaptured = true
+            isImageUploaded = false
+
 
             // Update the UI on the main thread
             runOnUiThread {
@@ -351,12 +365,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         }
     }
 
-    /**
-     * Sends the detection results (bounding boxes and OCR text) to the OpenAI ChatGPT API
-     * and displays the generated natural language description in the UI.
-     */
+
     private fun sendToChatGPT(jsonInput: JSONArray) {
-        // Create a Volley request queue to send the API call
         val queue = Volley.newRequestQueue(this)
 
         // Build the prompt to send to ChatGPT
@@ -365,9 +375,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
             append(detectionArray.toString(2)) // Format JSON for readability
         }
 
-        // Construct the JSON body for the ChatGPT API request
         val jsonBody = JSONObject().apply {
-            put("model", "ft:gpt-3.5-turbo-0125:ilab::BHlUI1ic") // Custom fine-tuned model
+            put("model", "ft:gpt-3.5-turbo-0125:rakshit::B3TzUmAj")
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")          // User input message
@@ -380,15 +389,13 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         val request = object : JsonObjectRequest(
             Method.POST, chatGPTUrl, jsonBody,
             { response ->
-                // On success, extract the generated response and display it
                 val result = response.getJSONArray("choices")
                     .getJSONObject(0)
                     .getJSONObject("message")
                     .getString("content")
-                binding.ocrTextView.text = result // Show the natural language description
+                binding.ocrTextView.text = result // Display ChatGPT reply
             },
             { error ->
-                // Log any error that occurs during the API call
                 Log.e("ChatGPT", "Error: ${error.message}")
             }
         ) {
@@ -405,61 +412,65 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         queue.add(request)
     }
 
-    /**
-     * Called when object detection results are available.
-     * Displays bounding boxes, performs OCR on each detected region,
-     * generates direction-based TTS feedback, and builds a JSON array for ChatGPT.
-     */
+
     override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
-        // Run all UI-related updates on the main thread
         runOnUiThread {
             // Display inference time
             binding.inferenceTime.text = "${inferenceTime}ms"
 
-            // Draw detected bounding boxes on the overlay
-            binding.overlay.setResults(boundingBoxes)
-            binding.overlay.invalidate()
+            // Determine image dimensions
+            val imgWidth = capturedBitmap?.width ?: binding.viewFinder.width
+            val imgHeight = capturedBitmap?.height ?: binding.viewFinder.height
+            Log.d("DEBUG", "Bounding boxes scaled for image size: $imgWidth x $imgHeight")
 
-            // If nothing was detected, exit early
+            // Use different views depending on source
+            if (isImageUploaded) {
+                uploadedImageView.setBoundingBoxes(boundingBoxes)
+                binding.overlay.clear()
+            } else {
+                binding.overlay.setResults(boundingBoxes, imgWidth, imgHeight)
+                uploadedImageView.setBoundingBoxes(emptyList())
+                binding.overlay.invalidate()
+            }
+
+
+            // If nothing was detected, skip processing
             if (boundingBoxes.isEmpty()) return@runOnUiThread
 
-            // Builder for aggregating OCR results
+            // Prepare to collect OCR results
             val ocrResult = StringBuilder()
-
-            // Keep track of how many boxes are processed for OCR
             val totalBoxes = boundingBoxes.size
             var completedCount = 0
 
-            // Iterate over each detected bounding box
             boundingBoxes.forEachIndexed { index, box ->
                 val label = box.clsName
-                val direction = getDirection(box) // Left, right, or front based on position
+                val direction = getDirection(box)
 
-                // Speak the detection result aloud
                 speakDetectedLabel("Detected a $label, $direction.")
 
                 capturedBitmap?.let { bitmap ->
                     val w = bitmap.width
                     val h = bitmap.height
 
-                    // Convert normalized coordinates to actual pixel values
+                    // Convert normalized coordinates to pixels
                     val x1 = (box.x1 * w).toInt()
                     val y1 = (box.y1 * h).toInt()
                     val x2 = (box.x2 * w).toInt()
                     val y2 = (box.y2 * h).toInt()
 
-                    // Ensure cropped dimensions are valid
+                    // Log normalized and pixel coordinates
+                    Log.d("COORDINATES", "Original: x1=${box.x1}, y1=${box.y1}, x2=${box.x2}, y2=${box.y2}")
+                    Log.d("COORDINATES", "Pixel: x1=$x1, y1=$y1, x2=$x2, y2=$y2")
+
+                    // Safeguard crop size
                     val cropWidth = (x2 - x1).coerceAtLeast(1)
                     val cropHeight = (y2 - y1).coerceAtLeast(1)
 
-                    // Crop the detected region from the full image
                     val croppedBitmap = Bitmap.createBitmap(bitmap, x1, y1, cropWidth, cropHeight)
 
-                    // Run OCR on the cropped region
                     runTextRecognition(croppedBitmap, label, ocrResult, index, box, w, h) {
                         completedCount++
 
-                        // Once all boxes are processed, show the OCR result and log JSON
                         if (completedCount == totalBoxes) {
                             binding.ocrTextView.text = ocrResult.toString().trim()
                             Log.d("JSON_OUTPUT", detectionArray.toString(2))
@@ -469,6 +480,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
             }
         }
     }
+
 
     /**
      * Runs text recognition (OCR) on a cropped bitmap, appends the result to the output string,
@@ -500,25 +512,26 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                 resultBuilder.append("${index + 1}. $label - $text\n")
 
                 // Normalize bounding box coordinates relative to the full image size
-                val norm = normalizeBoundingBox(
-                    (box.x1 * imageWidth).toInt(),
-                    (box.y1 * imageHeight).toInt(),
-                    (box.x2 * imageWidth).toInt(),
-                    (box.y2 * imageHeight).toInt(),
-                    imageWidth, imageHeight
-                )
+//                val norm = normalizeBoundingBox(
+//                    (box.x1 * imageWidth).toInt(),
+//                    (box.y1 * imageHeight).toInt(),
+//                    (box.x2 * imageWidth).toInt(),
+//                    (box.y2 * imageHeight).toInt(),
+//                    imageWidth, imageHeight
+//                )
 
                 // Create a structured JSON object for this detection
                 val detectionObject = JSONObject().apply {
                     put("label", label)
-                    put("ocr_text", text.replace("\n", " ")) // Flatten multiline OCR output
-                    put("normalized_bounding_box", JSONObject().apply {
-                        put("x", "%.4f".format(norm[0]))
-                        put("y", "%.4f".format(norm[1]))
-                        put("width", "%.4f".format(norm[2]))
-                        put("height", "%.4f".format(norm[3]))
+                    put("ocr_text", text.replace("\n", " "))
+                    put("bounding_box", JSONObject().apply {
+                        put("x1", "%.4f".format(box.x1))
+                        put("y1", "%.4f".format(box.y1))
+                        put("x2", "%.4f".format(box.x2))
+                        put("y2", "%.4f".format(box.y2))
                     })
                 }
+
 
                 // Add the result to the global detection array
                 detectionArray.put(detectionObject)
