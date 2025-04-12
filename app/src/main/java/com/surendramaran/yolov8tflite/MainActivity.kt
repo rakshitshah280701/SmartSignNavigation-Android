@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.speech.tts.TextToSpeech
+import android.text.method.ScrollingMovementMethod
 import android.util.Log
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
@@ -86,6 +87,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         // Inflate the layout using ViewBinding
         binding = ActivityMainBinding.inflate(layoutInflater)
         uploadedImageView = binding.uploadedImageView
+
+        binding.ocrTextView.movementMethod = ScrollingMovementMethod()
 
         uploadedImageView = binding.uploadedImageView  // ✅ ADD THIS LINE
 
