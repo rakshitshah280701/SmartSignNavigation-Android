@@ -173,7 +173,7 @@
         android:id="@+id/isSignWalk"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Mode: Sign"
+        android:text="Language: English"
         app:layout_constraintBottom_toBottomOf="@+id/heading"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/inferenceTime"
