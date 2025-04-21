@@ -379,7 +379,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         }
 
         val jsonBody = JSONObject().apply {
-            put("model", "ft:gpt-3.5-turbo-0125:rakshit::B3TzUmAj")
+//            put("model", "ft:gpt-3.5-turbo-0125:rakshit::B3TzUmAj")
+            put("model", "ft:gpt-3.5-turbo-0125:ilab::BHlUI1ic")
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")          // User input message
@@ -397,6 +398,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                     .getJSONObject("message")
                     .getString("content")
                 binding.ocrTextView.text = result // Display ChatGPT reply
+
+                tts.speak(result, TextToSpeech.QUEUE_FLUSH, null, null)
             },
             { error ->
                 Log.e("ChatGPT", "Error: ${error.message}")
