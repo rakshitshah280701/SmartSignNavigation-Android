@@ -61,6 +61,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
     private val chatGPTUrl = "https://api.openai.com/v1/chat/completions"
     private val apiKey = "Bearer-dummy-key" // Replace with your actual key
 
+    private var isEnglish = true
+
     // Registers a launcher for picking an image from the gallery
     private val pickImageLauncher = registerForActivityResult(
         // Use the contract that allows launching an external activity and getting a result back
@@ -191,11 +193,19 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
 
         // Toggle between Sign Detection and Sidewalk Damage Detection mode
         binding.isSignWalk.setOnClickListener {
-            isSignMode = !isSignMode
+            isEnglish = !isEnglish
 
-            // Update button label and status text
-            binding.isSignWalk.text = if (isSignMode) "Mode: Sidewalk" else "Mode: Sign"
-            binding.modeStatus.text = if (isSignMode) "In: Sign Mode" else "In: Sidewalk Mode"
+            if (isEnglish) {
+                tts.language = Locale.US
+                binding.isSignWalk.text = "Language: English"
+            } else {
+                val result = tts.setLanguage(Locale("es", "MX"))
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.e(TAG, "Spanish not supported on this device")
+                } else {
+                    binding.isSignWalk.text = "Idioma: Español"
+                }
+            }
 
             // Restart the selected detector
             if (isSignMode) {
@@ -228,9 +238,9 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         }
 
         // Send detected results (bounding boxes + OCR text) to ChatGPT for summary
-        binding.chatButton.setOnClickListener {
-            sendToChatGPT(detectionArray)
-        }
+//        binding.chatButton.setOnClickListener {
+//            sendToChatGPT(detectionArray)
+//        }
     }
 
     /**
@@ -372,14 +382,17 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
     private fun sendToChatGPT(jsonInput: JSONArray) {
         val queue = Volley.newRequestQueue(this)
 
-        // Build the prompt to send to ChatGPT
+        // 🧠 Build prompt based on current language
         val prompt = buildString {
-            append("Given the following detected signs and their bounding boxes with OCR text, generate a natural language description of the scene:\n\n")
-            append(detectionArray.toString(2)) // Format JSON for readability
+            append("Given the following detected signs and their bounding boxes with OCR text, generate a natural language description of the scene")
+            if (!isEnglish) append(" in Spanish") // 🌐 Add this only if toggled
+            append(":\n\n")
+            append(detectionArray.toString(2))
         }
 
         val jsonBody = JSONObject().apply {
-            put("model", "ft:gpt-3.5-turbo-0125:rakshit::B3TzUmAj")
+//            put("model", "ft:gpt-3.5-turbo-0125:rakshit::B3TzUmAj")
+            put("model", "ft:gpt-3.5-turbo-0125:ilab::BHlUI1ic")
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")          // User input message
@@ -397,6 +410,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                     .getJSONObject("message")
                     .getString("content")
                 binding.ocrTextView.text = result // Display ChatGPT reply
+
+                tts.speak(result, TextToSpeech.QUEUE_FLUSH, null, null)
             },
             { error ->
                 Log.e("ChatGPT", "Error: ${error.message}")
@@ -449,7 +464,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                 val label = box.clsName
                 val direction = getDirection(box)
 
-                speakDetectedLabel("Detected a $label, $direction.")
+//                speakDetectedLabel("Detected a $label, $direction.")
 
                 capturedBitmap?.let { bitmap ->
                     val w = bitmap.width
@@ -477,6 +492,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                         if (completedCount == totalBoxes) {
                             binding.ocrTextView.text = ocrResult.toString().trim()
                             Log.d("JSON_OUTPUT", detectionArray.toString(2))
+                            sendToChatGPT(detectionArray)
                         }
                     }
                 }
@@ -540,7 +556,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                 detectionArray.put(detectionObject)
 
                 // Speak the result aloud
-                tts.speak("$label detected. Text is $text", TextToSpeech.QUEUE_ADD, null, null)
+//                tts.speak("$label detected. Text is $text", TextToSpeech.QUEUE_ADD, null, null)
 
                 // Notify that OCR is done for this box
                 onComplete()
