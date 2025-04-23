@@ -238,9 +238,9 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         }
 
         // Send detected results (bounding boxes + OCR text) to ChatGPT for summary
-        binding.chatButton.setOnClickListener {
-            sendToChatGPT(detectionArray)
-        }
+//        binding.chatButton.setOnClickListener {
+//            sendToChatGPT(detectionArray)
+//        }
     }
 
     /**
@@ -464,7 +464,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                 val label = box.clsName
                 val direction = getDirection(box)
 
-                speakDetectedLabel("Detected a $label, $direction.")
+//                speakDetectedLabel("Detected a $label, $direction.")
 
                 capturedBitmap?.let { bitmap ->
                     val w = bitmap.width
@@ -492,6 +492,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                         if (completedCount == totalBoxes) {
                             binding.ocrTextView.text = ocrResult.toString().trim()
                             Log.d("JSON_OUTPUT", detectionArray.toString(2))
+                            sendToChatGPT(detectionArray)
                         }
                     }
                 }
@@ -555,7 +556,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                 detectionArray.put(detectionObject)
 
                 // Speak the result aloud
-                tts.speak("$label detected. Text is $text", TextToSpeech.QUEUE_ADD, null, null)
+//                tts.speak("$label detected. Text is $text", TextToSpeech.QUEUE_ADD, null, null)
 
                 // Notify that OCR is done for this box
                 onComplete()
