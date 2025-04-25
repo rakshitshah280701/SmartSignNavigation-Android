@@ -63,6 +63,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
 
     private var isEnglish = true
 
+    private var isResponseReady = false
+
     // Registers a launcher for picking an image from the gallery
     private val pickImageLauncher = registerForActivityResult(
         // Use the contract that allows launching an external activity and getting a result back
@@ -207,7 +209,19 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                 }
             }
 
-            // Restart the selected detector
+            // ✅ Translate and re-speak the text if we are in image capture mode and response is ready
+            if (isImageCaptured && isResponseReady) {
+                val originalText = binding.ocrTextView.text.toString()
+
+                translateText(originalText, isEnglish) { translatedText ->
+                    runOnUiThread {
+                        binding.ocrTextView.text = translatedText
+                        tts.speak(translatedText, TextToSpeech.QUEUE_FLUSH, null, null)
+                    }
+                }
+            }
+
+            // Restart detector depending on mode
             if (isSignMode) {
                 signDetector?.restart()
                 signDetector?.create()
@@ -242,6 +256,48 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
 //            sendToChatGPT(detectionArray)
 //        }
     }
+
+    private fun translateText(input: String, toEnglish: Boolean, callback: (String) -> Unit) {
+        val targetLang = if (toEnglish) "English" else "Spanish"
+        val prompt = "Translate the following text to $targetLang:\n\n$input"
+
+        val jsonBody = JSONObject().apply {
+            put("model", "gpt-3.5-turbo")
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", prompt)
+                })
+            })
+        }
+
+        val queue = Volley.newRequestQueue(this)
+
+        val request = object : JsonObjectRequest(
+            Method.POST, chatGPTUrl, jsonBody,
+            { response ->
+                val result = response.getJSONArray("choices")
+                    .getJSONObject(0)
+                    .getJSONObject("message")
+                    .getString("content")
+                callback(result.trim())
+            },
+            { error ->
+                Log.e("Translate", "Error: ${error.message}")
+                callback("Translation failed.")
+            }
+        ) {
+            override fun getHeaders(): MutableMap<String, String> {
+                return mutableMapOf(
+                    "Authorization" to apiKey,
+                    "Content-Type" to "application/json"
+                )
+            }
+        }
+
+        queue.add(request)
+    }
+
 
     /**
      * Handles an image selected from the gallery:
@@ -298,6 +354,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         // Reset capture state and image reference
         isImageCaptured = false
         isImageUploaded = false
+        isResponseReady = false
 
         capturedBitmap = null
 
@@ -321,6 +378,10 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
 
         // Ensure the overlay is visible (if hidden during image upload)
         binding.overlay.visibility = View.VISIBLE
+
+        if (this::tts.isInitialized) {
+            tts.stop()
+        }
 
         // Restart the camera preview to return to live detection mode
         startCamera()
@@ -412,6 +473,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
                 binding.ocrTextView.text = result // Display ChatGPT reply
 
                 tts.speak(result, TextToSpeech.QUEUE_FLUSH, null, null)
+                isResponseReady = true
             },
             { error ->
                 Log.e("ChatGPT", "Error: ${error.message}")
@@ -662,6 +724,14 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener, TextToSpeec
         if (this::tts.isInitialized) {
             tts.stop()
             tts.shutdown()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // ✅ Stop TTS when the app goes to the background
+        if (this::tts.isInitialized) {
+            tts.stop()
         }
     }
 

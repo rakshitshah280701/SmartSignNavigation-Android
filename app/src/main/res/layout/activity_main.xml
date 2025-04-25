@@ -78,6 +78,7 @@
         android:text="Detected: STOP SIGN"
         android:textColor="#FFFFFF"
         android:textSize="16sp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/heading" />
 
     <!-- Bottom Bar -->
@@ -102,34 +103,34 @@
 
         <ToggleButton
             android:id="@+id/capture"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
+            android:layout_width="246dp"
+            android:layout_height="103dp"
             android:background="@drawable/rounded_button"
             android:textColor="@android:color/black"
             android:textOff="Detect"
             android:textOn="Detect"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/uploadImageButton"
-            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/uploadImageButton"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintWidth_percent="0.7" />
 
         <ImageButton
             android:id="@+id/uploadImageButton"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
+            android:layout_width="117dp"
+            android:layout_height="104dp"
             android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
             android:layout_marginTop="16dp"
+            android:layout_marginEnd="8dp"
             android:layout_marginBottom="16dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Upload from gallery"
             android:scaleType="fitXY"
             android:src="@drawable/test_photo"
-            app:layout_constraintStart_toEndOf="@+id/capture"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/capture"
+            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintWidth_percent="0.3" />
 
 
